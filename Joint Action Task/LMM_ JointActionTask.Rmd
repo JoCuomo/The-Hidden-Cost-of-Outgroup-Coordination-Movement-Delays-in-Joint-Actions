@@ -1,0 +1,816 @@
+---
+title: "TLMM_JointActionTask"
+author: "Giovanna Cuomo"
+date: "2024-08-29"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## CODE BOOK & DESCRIPTION
+This script contains the analyses conducted on data related to participants who took part in our study for the Joint Action Task.
+In three different experiments, participants were presented with two virtual partners during the joint action task: an out-group (Black) or an in-group (White) avatar (the control condition). The instruction was to synchronize with the partner to gasp together a bottle-shaped object in front of them, performing the Same or Opposite movement relative to the avatar. A recent study has already proven how a partner’s racial membership can modulate interactive behaviors (Sacheli et al., 2015). To investigate the role of mPFC (vs Vertex, vs vPM) in coordinating with an out-group partner after a virtual inhibition of the area, before the joint action task, a continuous theta burst stimulation was administered (cTBS; Huang et al., 2005).
+
+Hypotheses
+1) Partner's ethnicity modulates people's ability to coordinate with them for shared goals.
+2) mPFC inhibition reduces predictive simulation during joint action with an ethnic out-group member, deteriorating the interactive performance.
+3) mPFC inhibition increases explicit and implicit racial bias.
+
+Preprocessing
+The raw data were cleaned as follows: 
+1) trials in which participants failed to grasp the bottle-shaped object correctly were excluded from the analyses (i.e., when the touch-sensitive plates were not correctly pressed); 
+2) trials when participants did not follow the instructions, and grasped the object on the wrong half the trial was discarded; 
+3) in a similar way, we did not include in the analyses those trials in which participants started their movement before the audio instruction was given;
+4) catch trials (i.e., when the virtual partner switched movement direction) from the analyses.
+5) outliers trial values 2.5 standard deviations above or below the mean for each subject within each condition
+
+Independent Variables:
+Site (mPFC vs vPM vs Vertex)
+Virtual partner Ethnicity (Black vs White)
+Movement (Same vs Opposite)
+Experiment (1, 2 or 3)
+
+Dependent Variables:
+Grasping Asynchrony (GA), i.e., the absolute value of the difference between the time of the thumb-index contact on the bottle-shaped object for the virtual partner and the participant.
+Movement Time (MT), i.e., the difference between the time the participant released the starting button and the time of their thumb-index contact with the object.
+Reaction Time (RT), i.e., the time passed between the end of the audio instruction and the moment the participant released the stating button.
+
+MLMMs
+In constructing the MLMMs that follows, we performed a “stepwise backward” selection process for the random effects. Starting from a structure that included all the relevant effects and interactions, we systematically removed terms based on singularity to optimize model fit and ensure the convergence of the model. Post-hoc comparisons were conducted utilizing the 'Estimated Marginal Means' R package (Lenth, 2020), employing the ‘emmeans’ and ‘emtrends’ functions to further investigate significant interactions. Bonferroni correction for multiple comparisons was applied. 
+
+
+First, we load packages we need for analyses 
+#PACKAGES
+```{r}
+library (tidyverse) #for data handling
+library(readxl) #to read excel files
+library(writexl)  #to export data as excel file 
+library(lme4) 
+library(emmeans) 
+library(ggplot2)
+library(rstatix)
+library(stats)
+library(dplyr)
+library(yarrr)
+library(xlsx)
+
+options(scipen=999)
+```
+
+##STUDY 1 & 3
+```{r}
+dati_tms = read.xlsx("data_1_3.xlsx", sheetIndex = 1)
+```
+
+Specifying the factors
+```{r}
+dati_tms$sito = as.factor(dati_tms$sito)
+dati_tms$bw = as.factor(dati_tms$bw)
+dati_tms$Movement = as.factor(dati_tms$Movement)
+dati_tms$Grasp = as.factor(dati_tms$Grasp)
+dati_tms$Subject = as.factor(dati_tms$Subject)
+```
+
+#Grasping Asynchrony
+```{r}
+ASY_model = lmer(Asynchrony ~  Exp * bw * sito * Movement +
+                            (1+ sito*bw|Subject), control = lmerControl(optimizer = "bobyqa"),
+                          data = dati_tms)
+#summary(ASY_model)
+isSingular(ASY_model)
+Anova(ASY_model)
+```
+
+residuals check
+```{r}
+res = residuals(ASY_model)
+plot(density(res))
+plot(ASY_model)
+qqnorm(residuals(ASY_model))
+qqline(residuals(ASY_model))
+```
+
+significant interactions post-hocs
+```{r}
+#emmeans/posthoc
+emmeans_interaction <- emmeans(ASY_model, ~ Exp * sito)
+
+posthoc_interaction <- pairs(emmeans_interaction, adjust = "bonferroni")
+
+summary(posthoc_interaction)
+```
+
+plot dataset
+```{r}
+pirateplot(formula = Asynchrony ~ bw + sito + Exp, #dependent variable ~ independent
+           data = dati_tms,  #data
+           theme = 3, #set theme
+           gl.col = "white",
+           ylab = "Grasping Asynchrony", xlab = "",#titles for x and y axes
+)
+```
+
+main effect of  Movement - plot
+```{r}
+pirateplot(formula = Asynchrony ~ Movement, #dependent variable ~ independent
+           data = dati_tms,  #data
+           theme = 3, #set theme
+           gl.col = "white",
+           ylab = "Grasping Asynchrony", xlab = "",#titles for x and y axes
+)
+```
+
+
+#Since data were not normal: Alternative - GA log
+```{r}
+dati_tms$Asynchrony_log = log(dati_tms$Asynchrony + 225)
+```
+
+run LMM log
+```{r}
+ASY_model3 = lmer(Asynchrony_log ~  Exp * bw * sito * Movement +
+                            (1+bw*sito|Subject), control = lmerControl(optimizer = "bobyqa"),
+                          data = dati_tms)
+summary(ASY_model3)
+isSingular(ASY_model3)
+Anova(ASY_model3)
+```
+
+significant interactions post-hocs
+```{r}
+#emmeans/posthoc
+emmeans_interaction <- emmeans(ASY_model3, ~ Exp * sito)
+
+posthoc_interaction <- pairs(emmeans_interaction, adjust = "bonferroni")
+
+summary(posthoc_interaction)
+```
+
+Significant effects  - plot
+```{r}
+pirateplot(formula = Asynchrony_log ~ Movement, #dependent variable ~ independent
+           data = dati_tms,  #data
+           theme = 3, #set theme
+           gl.col = "white",
+           ylab = "Grasping Asynchrony", xlab = "",#titles for x and y axes
+)
+
+```
+
+mean and ds
+```{r}
+library(dplyr)
+
+summary_stats_asy <- dati_tms %>%
+  group_by(Movement) %>%
+  summarise(
+    mean_Asy = mean(Asynchrony_log, na.rm = TRUE),      # Calcola la media
+    sd_Asy = sd(Asynchrony_log, na.rm = TRUE)           # Calcola la deviazione standard
+  )
+
+summary_stats_asy1 <- dati_tms %>%
+  group_by(Movement) %>%
+  summarise(
+    mean_Asy = mean(Asynchrony, na.rm = TRUE),      # Calcola la media
+    sd_Asy = sd(Asynchrony, na.rm = TRUE)           # Calcola la deviazione standard
+  )
+
+```
+
+residuals check
+```{r}
+res = residuals(ASY_model3)
+plot(density(res))
+plot(ASY_model3)
+qqnorm(residuals(ASY_model3))
+qqline(residuals(ASY_model3))
+```
+
+
+#Movement Time
+```{r}
+MT_model = lmer(MovTime ~  Exp * bw * sito * Movement +
+                            (1+sito*bw|Subject), control = lmerControl(optimizer = "bobyqa"),
+                          data = dati_tms)
+summary(MT_model)
+isSingular(MT_model)
+Anova(MT_model)
+```
+
+residuals check
+```{r}
+res = residuals(MT_model)
+plot(density(res))
+plot(MT_model)
+qqnorm(residuals(MT_model))
+qqline(residuals(MT_model))
+```
+
+plot dataset
+```{r}
+pirateplot(formula = MovTime ~ bw + sito + Movement, #dependent variable ~ independent
+           data = dati_tms,  #data
+           theme = 3, #set theme
+           gl.col = "white",
+           ylab = "Movement Time", xlab = "",#titles for x and y axes
+)
+```
+
+plot main effect
+```{r}
+pirateplot(formula = MovTime ~ Movement, #dependent variable ~ independent
+           data = dati_tms,  #data
+           theme = 3, #set theme
+           gl.col = "white",
+           ylab = "Movement Time", xlab = "",#titles for x and y axes
+)
+```
+
+mean and ds
+```{r}
+library(dplyr)
+
+summary_stats_asy <- dati_tms %>%
+  group_by(Movement) %>%
+  summarise(
+    mean_MovTime = mean(MovTime, na.rm = TRUE),      # Calcola la media
+    sd_MovTime = sd(MovTime, na.rm = TRUE)           # Calcola la deviazione standard
+  )
+```
+
+
+#Start - RT
+```{r}
+RT_model = lmer(Start ~  Exp * bw * sito * Movement +
+                            (1+sito*bw|Subject), control = lmerControl(optimizer = "bobyqa"),
+                          data = dati_tms)
+summary(RT_model)
+isSingular(RT_model)
+Anova(RT_model)
+```
+
+check residuals
+```{r}
+res = residuals(RT_model)
+plot(density(res))
+plot(RT_model)
+qqnorm(residuals(RT_model))
+qqline(residuals(RT_model))
+```
+
+posthocs
+```{r}
+#emmeans/posthoc
+emmeans_interaction1 <- emmeans(RT_model, ~ Exp * Movement)
+emmeans_interaction2 <- emmeans(RT_model, ~ Movement * Exp * bw)
+
+posthoc_interaction1 <- pairs(emmeans_interaction1, adjust = "bonferroni")
+posthoc_interaction2 <- pairs(emmeans_interaction2, adjust = "bonferroni")
+
+summary(posthoc_interaction1)
+summary(posthoc_interaction2)
+```
+
+means, ds
+```{r}
+
+summary_statsRT <- dati_tms %>%
+  group_by(bw) %>%
+  summarise(
+    mean_start = mean(Start, na.rm = TRUE),      # Calcola la media
+    sd_start = sd(Start, na.rm = TRUE)           # Calcola la deviazione standard
+  )
+```
+
+
+dataset plot
+```{r}
+pirateplot(formula = Start ~ bw + sito + Movement, #dependent variable ~ independent
+           data = dati_tms,  #data
+           theme = 3, #set theme
+           gl.col = "white",
+           ylab = "Reaction Times", xlab = "",#titles for x and y axes
+)
+```
+
+main effect plot
+```{r}
+pirateplot(formula = Start ~ bw , #dependent variable ~ independent
+           data = dati_tms,  #data
+           theme = 3, #set theme
+           gl.col = "white",
+           ylab = "Reaction Times", xlab = "",#titles for x and y axes
+)
+```
+
+
+
+
+##STUDIO 2
+```{r}
+EXP2 = read.xlsx("data_2.xlsx", sheetIndex = 1)
+```
+
+Factor Specification
+```{r}
+EXP2$sito = as.factor(EXP2$sito)
+EXP2$bw = as.factor(EXP2$bw)
+EXP2$Grasp= as.factor(EXP2$Grasp)
+EXP2$Movement = as.factor(EXP2$Movement)
+EXP2$Subject = as.factor (EXP2$Subject)
+```
+
+#Grasping Asynchrony
+```{r}
+ASY_EXP2 = lmer (Asynchrony ~  bw * sito * Movement +
+                               (1|Subject), control = lmerControl(optimizer = "bobyqa"),
+                             data = EXP2)
+isSingular(ASY_EXP2)
+summary(ASY_EXP2)
+Anova(ASY_EXP2)
+```
+check residuals
+```{r}
+res = residuals(ASY_EXP2)
+plot(density(res))
+plot(ASY_EXP2)
+qqnorm(residuals(ASY_EXP2))
+qqline(residuals(ASY_EXP2))
+```
+
+data plot
+```{r}
+pirateplot(formula = Asynchrony ~ bw + sito + Movement, #dependent variable ~ independent
+           data = EXP2,  #data
+           theme = 3, #set theme
+           gl.col = "white",
+           ylab = "Grasping Asynchrony", xlab = "Experiment 2",#titles for x and y axes
+)
+```
+
+Main effect Site
+```{r}
+pirateplot(formula = Asynchrony ~ sito, #dependent variable ~ independent
+           data = EXP2,  #data
+           theme = 3, #set theme
+           gl.col = "white",
+           ylab = "Grasping Asynchrony", xlab = "Experiment 2",#titles for x and y axes
+)
+```
+
+Main effect Movement
+```{r}
+pirateplot(formula = Asynchrony ~ Movement, #dependent variable ~ independent
+           data = EXP2,  #data
+           theme = 3, #set theme
+           gl.col = "white",
+           ylab = "Grasping Asynchrony", xlab = "Experiment 2",#titles for x and y axes
+)
+```
+
+mean and ds
+```{r}
+
+statsGA_EXP2 <- EXP2 %>%
+  group_by(Movement) %>%
+  summarise(
+    mean_asy = mean(Asynchrony, na.rm = TRUE),      # Calcola la media
+    sd_asy = sd(Asynchrony, na.rm = TRUE)           # Calcola la deviazione standard
+  )
+
+statsGA_EXP2_sito <- EXP2 %>%
+  group_by(sito) %>%
+  summarise(
+    mean_sito = mean(Asynchrony, na.rm = TRUE),      # Calcola la media
+    sd_sito = sd(Asynchrony, na.rm = TRUE)           # Calcola la deviazione standard
+  )
+```
+
+#Since data were not normal: Alternative - GA log
+```{r}
+EXP2$Asynchrony_log = log(EXP2$Asynchrony + 225)
+```
+
+run LMM log
+```{r}
+ASY_model_studio2 = lmer(Asynchrony_log ~  bw * Movement * sito +
+                            (1|Subject), control = lmerControl(optimizer = "bobyqa"),
+                          data = EXP2)
+
+#summary(ASY_model_studio2)
+isSingular(ASY_model_studio2)
+Anova(ASY_model_studio2)
+```
+
+residuals check
+```{r}
+res = residuals(ASY_model_studio2)
+plot(density(res))
+plot(ASY_model_studio2)
+qqnorm(residuals(ASY_model_studio2))
+qqline(residuals(ASY_model_studio2))
+```
+data plots
+```{r}
+pirateplot(formula = Asynchrony_log ~  bw, #dependent variable ~ independent
+           data = EXP2,  #data
+           theme = 3, #set theme
+           gl.col = "white",
+           ylab = "Grasping Asynchrony", xlab = "",#titles for x and y axes
+)
+
+pirateplot(formula = Asynchrony_log ~  Movement, #dependent variable ~ independent
+           data = EXP2,  #data
+           theme = 3, #set theme
+           gl.col = "white",
+           ylab = "Grasping Asynchrony", xlab = "",#titles for x and y axes
+)
+```
+
+
+Means, ds
+```{r}
+
+log_statsASY2 <- EXP2 %>%
+  group_by(bw) %>%
+  summarise(
+    mean_bw = mean(Asynchrony_log, na.rm = TRUE),      # Calcola la media
+    sd_bw = sd(Asynchrony_log, na.rm = TRUE)           # Calcola la deviazione standard
+  )
+
+log_statsASY_m2 <- EXP2 %>%
+  group_by(Movement) %>%
+  summarise(
+    mean_m = mean(Asynchrony_log, na.rm = TRUE),      # Calcola la media
+    sd_m = sd(Asynchrony_log, na.rm = TRUE)           # Calcola la deviazione standard
+  )
+```
+
+#Movement Time
+```{r}
+MT_EXP2 = lmer(MovTime ~  bw * sito * Movement +
+                            (1+sito*bw|Subject), control = lmerControl(optimizer = "bobyqa"),
+                          data = EXP2)
+summary(MT_EXP2)
+isSingular(MT_EXP2)
+Anova(MT_EXP2)
+```
+
+Posthocs
+```{r}
+#emmeans/posthoc
+emmeans_interaction <- emmeans(MT_EXP2, ~ bw * sito)
+emmeans_interaction1 <- emmeans(MT_EXP2, ~ bw * Movement)
+emmeans_interaction2 <- emmeans(MT_EXP2, ~ Movement * sito)
+
+
+posthoc_interaction <- pairs(emmeans_interaction, adjust = "bonferroni")
+posthoc_interaction1 <- pairs(emmeans_interaction1, adjust = "bonferroni")
+posthoc_interaction2 <- pairs(emmeans_interaction2, adjust = "bonferroni")
+
+
+summary(posthoc_interaction)
+summary(posthoc_interaction1)
+summary(posthoc_interaction2)
+
+```
+
+Control residuals distributions 
+```{r}
+res = residuals(MT_EXP2)
+plot(density(res))
+plot(MT_EXP2)
+qqnorm(residuals(MT_EXP2))
+qqline(residuals(MT_EXP2))
+```
+
+data plots
+```{r}
+pirateplot(formula = MovTime ~ bw + sito + Movement, #dependent variable ~ independent
+           data = EXP2,  #data
+           theme = 3, #set theme
+           gl.col = "white",
+           ylab = "Movement Time", xlab = "Experiment 2",#titles for x and y axes
+)
+```
+
+#Start - RT
+```{r}
+RT_EXP2 = lmer(Start ~ bw * sito * Movement +
+                            (1+sito*bw|Subject), control = lmerControl(optimizer = "bobyqa"),
+                          data = EXP2)
+summary(RT_EXP2)
+isSingular(RT_EXP2)
+Anova(RT_EXP2)
+```
+
+Control residual distribution
+```{r}
+res = residuals(RT_EXP2)
+plot(density(res))
+plot(RT_EXP2)
+qqnorm(residuals(RT_EXP2))
+qqline(residuals(RT_EXP2))
+```
+
+Posthocs
+```{r}
+#emmeans/posthoc
+emmeans_interaction <- emmeans(RT_EXP2, ~ bw * sito * Movement)
+
+posthoc_interaction <- pairs(emmeans_interaction, adjust = "bonferroni")
+
+summary(posthoc_interaction)
+```
+
+Mean and ds
+```{r}
+
+summary_statsRT_EXP2 <- EXP2 %>%
+  group_by(Movement) %>%
+  summarise(
+    mean_MovTime = mean(Start, na.rm = TRUE),      # Calcola la media
+    sd_MovTime = sd(Start, na.rm = TRUE)           # Calcola la deviazione standard
+  )
+```
+
+
+Dataplots
+```{r}
+pirateplot(formula = Start ~ bw + sito + Movement, #dependent variable ~ independent
+           data = EXP2,  #data
+           theme = 3, #set theme
+           gl.col = "white",
+           ylab = "Reaction Time", xlab = "Experiment 2",#titles for x and y axes
+)
+```
+
+
+Main Effect Plot
+```{r}
+pirateplot(formula = Start ~ Movement, #dependent variable ~ independent
+           data = EXP2,  #data
+           theme = 3, #set theme
+           gl.col = "white",
+           ylab = "Reaction Time", xlab = "Experiment 2",#titles for x and y axes
+)
+```
+
+
+##ALL STUDIES
+```{r}
+dataset_2 = read.xlsx("dataset_2.xlsx", sheetIndex = 1)
+```
+
+factors declaration
+```{r}
+dataset_2$sito = as.factor(dataset_2$sito)
+dataset_2$bw = as.factor(dataset_2$bw)
+dataset_2$Movement = as.factor(dataset_2$Movement)
+dataset_2$Grasp = as.factor(dataset_2$Grasp)
+dataset_2$Subject = as.factor(dataset_2$Subject)
+```
+
+#Grasping Asynchrony
+```{r}
+ASY_model_3studi = lmer(Asynchrony ~  Exp * bw * Movement + sito +
+                               (1+bw+sito|Subject), control = lmerControl(optimizer = "bobyqa"),
+                             data = dataset_2)
+#summary(ASY_model_3studi)
+isSingular(ASY_model_3studi)
+Anova(ASY_model_3studi)
+```
+
+residuals check
+```{r}
+res = residuals(ASY_model_3studi)
+plot(density(res))
+plot(ASY_model_3studi)
+qqnorm(residuals(ASY_model_3studi))
+qqline(residuals(ASY_model_3studi))
+```
+means, ds
+```{r}
+
+summary_statsASY_ALL <- dataset_2 %>%
+  group_by(Movement) %>%
+  summarise(
+    mean_Mov = mean(Asynchrony, na.rm = TRUE),      # Calcola la media
+    sd_Mov = sd(Asynchrony, na.rm = TRUE)           # Calcola la deviazione standard
+  )
+```
+
+data plots
+```{r}
+pirateplot(formula = Asynchrony ~  Movement, #dependent variable ~ independent
+           data = dataset_2,  #data
+           theme = 3, #set theme
+           gl.col = "white",
+           ylab = "Grasping Asynchrony", xlab = "",#titles for x and y axes
+)
+```
+
+#Since data were not normal: Alternative - GA log
+```{r}
+dataset_2$Asynchrony_log = log(dataset_2$Asynchrony + 225)
+```
+
+run LMM log
+```{r}
+ASY_model_3studi2 = lmer(Asynchrony_log ~  Exp * bw * Movement + sito +
+                            (1+bw+sito|Subject), control = lmerControl(optimizer = "bobyqa"),
+                          data = dataset_2)
+
+#summary(ASY_model_3studi2)
+isSingular(ASY_model_3studi2)
+Anova(ASY_model_3studi2)
+```
+
+residuals check
+```{r}
+res = residuals(ASY_model_3studi2)
+plot(density(res))
+plot(ASY_model_3studi2)
+qqnorm(residuals(ASY_model_3studi2))
+qqline(residuals(ASY_model_3studi2))
+```
+data plots
+```{r}
+pirateplot(formula = Asynchrony_log ~  Movement, #dependent variable ~ independent
+           data = dataset_2,  #data
+           theme = 3, #set theme
+           gl.col = "white",
+           ylab = "Grasping Asynchrony", xlab = "",#titles for x and y axes
+)
+```
+
+
+means, ds
+```{r}
+
+log_statsASY_ALL <- dataset_2 %>%
+  group_by(Movement) %>%
+  summarise(
+    mean_Mov = mean(Asynchrony_log, na.rm = TRUE),      # Calcola la media
+    sd_Mov = sd(Asynchrony_log, na.rm = TRUE)           # Calcola la deviazione standard
+  )
+```
+
+#Movement Time
+```{r}
+MT_model_3studi = lmer(MovTime ~  Exp * bw * Movement +
+                            (1+bw|Subject), control = lmerControl(optimizer = "bobyqa"),
+                          data = dataset_2)
+#summary(MT_model_3studi)
+isSingular(MT_model_3studi)
+Anova(MT_model_3studi)
+```
+check residuals
+```{r}
+res = residuals(MT_model_3studi)
+plot(density(res))
+plot(MT_model_3studi)
+qqnorm(residuals(MT_model_3studi))
+qqline(residuals(MT_model_3studi))
+```
+
+means, ds
+```{r}
+
+summary_statsMT_Exp <- dataset_2 %>%
+  group_by(Exp) %>%
+  summarise(
+    mean_MovTime = mean(MovTime, na.rm = TRUE),      # Calcola la media
+    sd_MovTime = sd(MovTime, na.rm = TRUE)           # Calcola la deviazione standard
+  )
+
+summary_statsMT <- dataset_2 %>%
+  group_by(Movement) %>%
+  summarise(
+    mean_MovTime = mean(MovTime, na.rm = TRUE),      # Calcola la media
+    sd_MovTime = sd(MovTime, na.rm = TRUE)           # Calcola la deviazione standard
+  )
+```
+
+posthocs
+```{r}
+#emmeans/posthoc
+emmeans_Experiment <- emmeans(MT_model_3studi, ~ Exp)
+
+posthoc_Experiment <- contrast(emmeans_Experiment, adjust = "bonferroni")
+
+summary(posthoc_Experiment)
+```
+main effects plots
+```{r}
+pirateplot(formula = MovTime ~ Movement, #dependent variable ~ independent
+           data = dataset_2,  #data
+           theme = 3, #set theme
+           gl.col = "white",
+           ylab = "Movement Time", xlab = "",#titles for x and y axes
+)
+
+pirateplot(formula = MovTime ~ Exp, #dependent variable ~ independent
+           data = dataset_2,  #data
+           theme = 3, #set theme
+           gl.col = "white",
+           ylab = "Movement Time", xlab = "",#titles for x and y axes
+)
+```
+
+#Start - RT
+```{r}
+RT_model_3studi = lmer(Start ~  Exp * bw * Movement +
+                            (1+bw|Subject), control = lmerControl(optimizer = "bobyqa"),
+                          data = dataset_2)
+#summary(RT_model_3studi)
+isSingular(RT_model_3studi)
+Anova(RT_model_3studi)
+```
+check residuals
+```{r}
+res = residuals(RT_model_3studi)
+plot(density(res))
+plot(RT_model_3studi)
+qqnorm(residuals(RT_model_3studi))
+qqline(residuals(RT_model_3studi))
+```
+
+posthocs
+```{r}
+#emmeans/posthoc
+RT_emmeans_interaction <- emmeans(RT_model_3studi, ~ Exp * Movement)
+RT_emmeans_Experiment <- emmeans(MT_model_3studi, ~ Exp)
+
+
+posthoc_interaction <- pairs(RT_emmeans_interaction, adjust = "bonferroni")
+posthoc_Experiment <- contrast(RT_emmeans_Experiment, adjust = "bonferroni")
+
+summary(posthoc_interaction)
+summary(posthoc_Experiment)
+```
+
+means and ds
+```{r}
+
+statsRT_Exp <- dataset_2 %>%
+  group_by(Exp) %>%
+  summarise(
+    mean_MovTime = mean(Start, na.rm = TRUE),      # Calcola la media
+    sd_MovTime = sd(Start, na.rm = TRUE)           # Calcola la deviazione standard
+  )
+
+statsRT_Mov <- dataset_2 %>%
+  group_by(Movement) %>%
+  summarise(
+    mean_MovTime = mean(Start, na.rm = TRUE),      # Calcola la media
+    sd_MovTime = sd(Start, na.rm = TRUE)           # Calcola la deviazione standard
+  )
+
+statsRT_bw <- dataset_2 %>%
+  group_by(bw) %>%
+  summarise(
+    mean_MovTime = mean(Start, na.rm = TRUE),      # Calcola la media
+    sd_MovTime = sd(Start, na.rm = TRUE)           # Calcola la deviazione standard
+  )
+
+statsRT_interaction <- dataset_2 %>%
+  group_by(Exp, Movement) %>%
+  summarise(
+    mean_MovTime = mean(Start, na.rm = TRUE),      # Calcola la media
+    sd_MovTime = sd(Start, na.rm = TRUE)           # Calcola la deviazione standard
+  )
+```
+
+significant results plots 
+```{r}
+pirateplot(formula = Start ~ Movement, #dependent variable ~ independent
+           data = dataset_2,  #data
+           theme = 3, #set theme
+           gl.col = "white",
+           ylab = "Reaction Times", xlab = "",#titles for x and y axes
+)
+
+pirateplot(formula = Start ~ Exp, #dependent variable ~ independent
+           data = dataset_2,  #data
+           theme = 3, #set theme
+           gl.col = "white",
+           ylab = "Reaction Times", xlab = "",#titles for x and y axes
+)
+
+pirateplot(formula = Start ~ bw, #dependent variable ~ independent
+           data = dataset_2,  #data
+           theme = 3, #set theme
+           gl.col = "white",
+           ylab = "Reaction Times", xlab = "",#titles for x and y axes
+)
+
+pirateplot(formula = Start ~ Exp + Movement, #dependent variable ~ independent
+           data = dataset_2,  #data
+           theme = 3, #set theme
+           gl.col = "white",
+           ylab = "Reaction Times", xlab = "",#titles for x and y axes
+)
+```
